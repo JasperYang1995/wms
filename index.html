@@ -330,15 +330,17 @@
                                 <tr>
                                     <th>單號</th>
                                     <th>經銷商</th>
+                                    <th>地址</th>
                                     <th>時間</th>
                                     <th>台數</th>
+                                    <th>優先級</th>
                                     <th>過帳</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody id="erp-list">
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted p-4">請先查詢單號，確認無誤後再點擊「匯入」</td>
+                                    <td colspan="8" class="text-center text-muted p-4">請先查詢單號，確認無誤後再點擊「匯入」</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -563,19 +565,46 @@
                     <!-- List -->
                     <div id="app-list" class="app-page">
                         <div class="p-3">
-                            <h6 class="text-muted border-bottom pb-2">任務清單</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="text-muted mb-0">任務清單</h6>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="showSwitchDriver()"
+                                        title="切換司機">
+                                        <i class="fas fa-user-cog"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="renderAppTasks()"
+                                        title="手動刷新">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert alert-info small mb-2 py-2">
+                                <i class="fas fa-info-circle"></i> 任務會自動更新（每3秒）
+                            </div>
+                            <div class="mb-2 small text-muted">
+                                <i class="fas fa-user"></i> 當前司機：<strong
+                                    id="app-current-driver-name">${DB.currentAppUser || '未登入'}</strong>
+                            </div>
                             <div id="app-tasks"></div>
                         </div>
                     </div>
                     <!-- Detail -->
                     <div id="app-detail" class="app-page" style="padding:0;">
                         <div class="app-scanner-bar">
-                            <div class="d-flex justify-content-between align-items-center mb-2"><button
-                                    class="btn btn-sm btn-outline-light" onclick="navApp('app-list')"><i
-                                        class="fas fa-chevron-left"></i> 返回</button><span class="small"
-                                    id="app-scan-status">0/0</span>
-                                <div class="form-check form-switch"><input class="form-check-input" type="checkbox"
-                                        id="returnModeSwitch"><label class="form-check-label small">退貨模式</label></div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <button class="btn btn-sm btn-outline-light" onclick="navApp('app-list')">
+                                    <i class="fas fa-chevron-left"></i> 返回任務
+                                </button>
+                                <span class="small" id="app-scan-status">0/0</span>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="returnModeSwitch">
+                                    <label class="form-check-label small">退貨模式</label>
+                                </div>
+                            </div>
+                            <div class="small text-light opacity-75 mb-1">
+                                <i class="fas fa-sync-alt"></i> 數據自動同步中...
+                            </div>
+                            <div id="app-task-info" class="small text-light opacity-90 mb-2" style="display:none;">
                             </div>
                             <div class="input-group input-group-sm"><input type="text" class="form-control"
                                     id="app-scan-input" placeholder="掃描條碼..."
@@ -616,43 +645,213 @@
     <script>
         // --- Global Data ---
         const SYSTEM_USER = { branch: '', id: '' };
+        // 司機資料庫（包含更多信息）
         const DRIVERS_DB = {
-            'Taipei': ['王小明', '陳大文'], 'NewTaipei': ['李大華', '林建國'], 'Taoyuan': ['郭富城', '劉德華'],
-            'Taichung': ['金城武'], 'Changhua': ['周杰倫'], 'Yunlin': ['伍佰'], 'Chiayi': ['蔡依林']
+            'Taipei': [
+                { name: '王小明', phone: '0912-345-678', vehicle: 'ABC-1234', status: 'available' },
+                { name: '陳大文', phone: '0912-345-679', vehicle: 'ABC-1235', status: 'available' },
+                { name: '張三豐', phone: '0912-345-680', vehicle: 'ABC-1236', status: 'available' },
+                { name: '李四維', phone: '0912-345-681', vehicle: 'ABC-1237', status: 'available' },
+                { name: '趙五德', phone: '0912-345-682', vehicle: 'ABC-1238', status: 'available' }
+            ],
+            'NewTaipei': [
+                { name: '李大華', phone: '0913-456-789', vehicle: 'DEF-2345', status: 'available' },
+                { name: '林建國', phone: '0913-456-790', vehicle: 'DEF-2346', status: 'available' },
+                { name: '陳志明', phone: '0913-456-791', vehicle: 'DEF-2347', status: 'available' },
+                { name: '黃文雄', phone: '0913-456-792', vehicle: 'DEF-2348', status: 'available' }
+            ],
+            'Taoyuan': [
+                { name: '郭富城', phone: '0914-567-890', vehicle: 'GHI-3456', status: 'available' },
+                { name: '劉德華', phone: '0914-567-891', vehicle: 'GHI-3457', status: 'available' },
+                { name: '張學友', phone: '0914-567-892', vehicle: 'GHI-3458', status: 'available' },
+                { name: '黎明', phone: '0914-567-893', vehicle: 'GHI-3459', status: 'available' }
+            ],
+            'Taichung': [
+                { name: '金城武', phone: '0915-678-901', vehicle: 'JKL-4567', status: 'available' },
+                { name: '周潤發', phone: '0915-678-902', vehicle: 'JKL-4568', status: 'available' },
+                { name: '梁朝偉', phone: '0915-678-903', vehicle: 'JKL-4569', status: 'available' }
+            ],
+            'Changhua': [
+                { name: '周杰倫', phone: '0916-789-012', vehicle: 'MNO-5678', status: 'available' },
+                { name: '王力宏', phone: '0916-789-013', vehicle: 'MNO-5679', status: 'available' },
+                { name: '林俊傑', phone: '0916-789-014', vehicle: 'MNO-5680', status: 'available' }
+            ],
+            'Yunlin': [
+                { name: '伍佰', phone: '0917-890-123', vehicle: 'PQR-6789', status: 'available' },
+                { name: '陳昇', phone: '0917-890-124', vehicle: 'PQR-6790', status: 'available' }
+            ],
+            'Chiayi': [
+                { name: '蔡依林', phone: '0918-901-234', vehicle: 'STU-7890', status: 'available' },
+                { name: '張惠妹', phone: '0918-901-235', vehicle: 'STU-7891', status: 'available' },
+                { name: '蕭亞軒', phone: '0918-901-236', vehicle: 'STU-7892', status: 'available' }
+            ]
         };
+
+        // 輔助函數：獲取司機名稱列表
+        function getDriverNames(branch) {
+            if (branch === 'HQ') {
+                return Object.values(DRIVERS_DB).flat().map(d => d.name);
+            }
+            return (DRIVERS_DB[branch] || []).map(d => d.name);
+        }
+
+        // 輔助函數：獲取司機完整信息
+        function getDriverInfo(branch, name) {
+            if (branch === 'HQ') {
+                for (let drivers of Object.values(DRIVERS_DB)) {
+                    const driver = drivers.find(d => d.name === name);
+                    if (driver) return driver;
+                }
+            } else {
+                return (DRIVERS_DB[branch] || []).find(d => d.name === name);
+            }
+            return null;
+        }
+        // T-100 出貨單資料庫（增強版：包含地址、聯絡人等完整信息）
         const T100_DB = {
             // 台北分公司
-            "DN-2025001": { dealer: "順發冷氣 (內湖)", branch: "Taipei", time: "2025/12/25 09:00", totalItems: 4, isPosted: false },
-            "DN-2025008": { dealer: "台北家電 (信義)", branch: "Taipei", time: "2025/12/25 11:00", totalItems: 8, isPosted: false },
-            "DN-2025009": { dealer: "東區電器 (松山)", branch: "Taipei", time: "2025/12/25 15:00", totalItems: 6, isPosted: false },
-            "DN-2025010": { dealer: "北投空調 (北投)", branch: "Taipei", time: "2025/12/26 10:00", totalItems: 10, isPosted: false },
+            "DN-2025001": {
+                dealer: "順發冷氣 (內湖)", branch: "Taipei", time: "2025/12/25 09:00", totalItems: 4, isPosted: false,
+                address: "台北市內湖區內湖路一段123號", contact: "王經理", phone: "02-2791-2345", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
+            "DN-2025008": {
+                dealer: "台北家電 (信義)", branch: "Taipei", time: "2025/12/25 11:00", totalItems: 8, isPosted: false,
+                address: "台北市信義區信義路五段456號", contact: "李店長", phone: "02-2723-4567", deliveryWindow: "10:00-13:00", priority: "high"
+            },
+            "DN-2025009": {
+                dealer: "東區電器 (松山)", branch: "Taipei", time: "2025/12/25 15:00", totalItems: 6, isPosted: false,
+                address: "台北市松山區八德路三段789號", contact: "陳主任", phone: "02-2765-6789", deliveryWindow: "14:00-17:00", priority: "normal"
+            },
+            "DN-2025010": {
+                dealer: "北投空調 (北投)", branch: "Taipei", time: "2025/12/26 10:00", totalItems: 10, isPosted: false,
+                address: "台北市北投區中央北路一段321號", contact: "張老闆", phone: "02-2891-2345", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
+            "DN-2025026": {
+                dealer: "大安電器 (大安)", branch: "Taipei", time: "2025/12/26 11:30", totalItems: 6, isPosted: false,
+                address: "台北市大安區復興南路二段654號", contact: "林經理", phone: "02-2701-2345", deliveryWindow: "10:00-13:00", priority: "high"
+            },
+            "DN-2025027": {
+                dealer: "中山冷氣 (中山)", branch: "Taipei", time: "2025/12/26 14:00", totalItems: 4, isPosted: false,
+                address: "台北市中山區南京東路三段987號", contact: "黃店長", phone: "02-2501-2345", deliveryWindow: "13:00-16:00", priority: "normal"
+            },
             // 新北分公司
-            "DN-2025002": { dealer: "大立電器 (板橋)", branch: "NewTaipei", time: "2025/12/25 10:30", totalItems: 6, isPosted: false },
-            "DN-2025011": { dealer: "新店冷氣 (新店)", branch: "NewTaipei", time: "2025/12/25 13:00", totalItems: 4, isPosted: false },
-            "DN-2025012": { dealer: "三重家電 (三重)", branch: "NewTaipei", time: "2025/12/26 09:30", totalItems: 12, isPosted: false },
-            "DN-2025013": { dealer: "中和電器 (中和)", branch: "NewTaipei", time: "2025/12/26 14:00", totalItems: 8, isPosted: false },
+            "DN-2025002": {
+                dealer: "大立電器 (板橋)", branch: "NewTaipei", time: "2025/12/25 10:30", totalItems: 6, isPosted: false,
+                address: "新北市板橋區文化路一段111號", contact: "吳經理", phone: "02-2961-2345", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
+            "DN-2025011": {
+                dealer: "新店冷氣 (新店)", branch: "NewTaipei", time: "2025/12/25 13:00", totalItems: 4, isPosted: false,
+                address: "新北市新店區中正路222號", contact: "鄭店長", phone: "02-2911-2345", deliveryWindow: "12:00-15:00", priority: "normal"
+            },
+            "DN-2025012": {
+                dealer: "三重家電 (三重)", branch: "NewTaipei", time: "2025/12/26 09:30", totalItems: 12, isPosted: false,
+                address: "新北市三重區重新路三段333號", contact: "周主任", phone: "02-2981-2345", deliveryWindow: "08:00-11:00", priority: "high"
+            },
+            "DN-2025013": {
+                dealer: "中和電器 (中和)", branch: "NewTaipei", time: "2025/12/26 14:00", totalItems: 8, isPosted: false,
+                address: "新北市中和區中和路444號", contact: "徐老闆", phone: "02-2241-2345", deliveryWindow: "13:00-16:00", priority: "normal"
+            },
+            "DN-2025028": {
+                dealer: "永和空調 (永和)", branch: "NewTaipei", time: "2025/12/26 15:30", totalItems: 6, isPosted: false,
+                address: "新北市永和區永和路二段555號", contact: "馬經理", phone: "02-2921-2345", deliveryWindow: "14:00-17:00", priority: "normal"
+            },
+            "DN-2025029": {
+                dealer: "新莊電器 (新莊)", branch: "NewTaipei", time: "2025/12/27 09:00", totalItems: 4, isPosted: false,
+                address: "新北市新莊區中正路666號", contact: "謝店長", phone: "02-2991-2345", deliveryWindow: "08:00-11:00", priority: "normal"
+            },
             // 桃園分公司
-            "DN-2025003": { dealer: "永興空調 (桃園)", branch: "Taoyuan", time: "2025/12/25 14:00", totalItems: 50, isPosted: false },
-            "DN-2025014": { dealer: "中壢冷氣 (中壢)", branch: "Taoyuan", time: "2025/12/25 16:00", totalItems: 6, isPosted: false },
-            "DN-2025015": { dealer: "平鎮電器 (平鎮)", branch: "Taoyuan", time: "2025/12/26 11:00", totalItems: 10, isPosted: false },
-            "DN-2025016": { dealer: "八德家電 (八德)", branch: "Taoyuan", time: "2025/12/26 15:00", totalItems: 4, isPosted: false },
+            "DN-2025003": {
+                dealer: "永興空調 (桃園)", branch: "Taoyuan", time: "2025/12/25 14:00", totalItems: 50, isPosted: false,
+                address: "桃園市桃園區中正路777號", contact: "劉經理", phone: "03-331-2345", deliveryWindow: "13:00-16:00", priority: "urgent"
+            },
+            "DN-2025014": {
+                dealer: "中壢冷氣 (中壢)", branch: "Taoyuan", time: "2025/12/25 16:00", totalItems: 6, isPosted: false,
+                address: "桃園市中壢區中正路888號", contact: "何店長", phone: "03-425-2345", deliveryWindow: "15:00-18:00", priority: "normal"
+            },
+            "DN-2025015": {
+                dealer: "平鎮電器 (平鎮)", branch: "Taoyuan", time: "2025/12/26 11:00", totalItems: 10, isPosted: false,
+                address: "桃園市平鎮區中正路999號", contact: "羅主任", phone: "03-458-2345", deliveryWindow: "10:00-13:00", priority: "high"
+            },
+            "DN-2025016": {
+                dealer: "八德家電 (八德)", branch: "Taoyuan", time: "2025/12/26 15:00", totalItems: 4, isPosted: false,
+                address: "桃園市八德區介壽路一段101號", contact: "高老闆", phone: "03-365-2345", deliveryWindow: "14:00-17:00", priority: "normal"
+            },
+            "DN-2025030": {
+                dealer: "龜山冷氣 (龜山)", branch: "Taoyuan", time: "2025/12/27 10:00", totalItems: 8, isPosted: false,
+                address: "桃園市龜山區萬壽路二段202號", contact: "蔡經理", phone: "03-329-2345", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
             // 台中分公司
-            "DN-2025004": { dealer: "台中電子 (台中)", branch: "Taichung", time: "2025/12/26 09:00", totalItems: 10, isPosted: false },
-            "DN-2025017": { dealer: "豐原冷氣 (豐原)", branch: "Taichung", time: "2025/12/26 10:30", totalItems: 6, isPosted: false },
-            "DN-2025018": { dealer: "大里電器 (大里)", branch: "Taichung", time: "2025/12/26 13:00", totalItems: 8, isPosted: false },
-            "DN-2025019": { dealer: "沙鹿家電 (沙鹿)", branch: "Taichung", time: "2025/12/27 09:00", totalItems: 4, isPosted: false },
+            "DN-2025004": {
+                dealer: "台中電子 (台中)", branch: "Taichung", time: "2025/12/26 09:00", totalItems: 10, isPosted: false,
+                address: "台中市西屯區台灣大道三段303號", contact: "楊經理", phone: "04-2312-3456", deliveryWindow: "08:00-11:00", priority: "high"
+            },
+            "DN-2025017": {
+                dealer: "豐原冷氣 (豐原)", branch: "Taichung", time: "2025/12/26 10:30", totalItems: 6, isPosted: false,
+                address: "台中市豐原區中正路404號", contact: "許店長", phone: "04-2523-4567", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
+            "DN-2025018": {
+                dealer: "大里電器 (大里)", branch: "Taichung", time: "2025/12/26 13:00", totalItems: 8, isPosted: false,
+                address: "台中市大里區中興路二段505號", contact: "鄧主任", phone: "04-2481-2345", deliveryWindow: "12:00-15:00", priority: "normal"
+            },
+            "DN-2025019": {
+                dealer: "沙鹿家電 (沙鹿)", branch: "Taichung", time: "2025/12/27 09:00", totalItems: 4, isPosted: false,
+                address: "台中市沙鹿區中正街606號", contact: "江老闆", phone: "04-2631-2345", deliveryWindow: "08:00-11:00", priority: "normal"
+            },
+            "DN-2025031": {
+                dealer: "太平空調 (太平)", branch: "Taichung", time: "2025/12/27 11:00", totalItems: 6, isPosted: false,
+                address: "台中市太平區中興路707號", contact: "葉經理", phone: "04-2271-2345", deliveryWindow: "10:00-13:00", priority: "normal"
+            },
             // 彰化分公司
-            "DN-2025005": { dealer: "彰化家電 (彰化)", branch: "Changhua", time: "2025/12/26 11:00", totalItems: 4, isPosted: false },
-            "DN-2025020": { dealer: "員林冷氣 (員林)", branch: "Changhua", time: "2025/12/26 12:00", totalItems: 6, isPosted: false },
-            "DN-2025021": { dealer: "鹿港電器 (鹿港)", branch: "Changhua", time: "2025/12/27 10:00", totalItems: 8, isPosted: false },
+            "DN-2025005": {
+                dealer: "彰化家電 (彰化)", branch: "Changhua", time: "2025/12/26 11:00", totalItems: 4, isPosted: false,
+                address: "彰化縣彰化市中正路二段808號", contact: "吳店長", phone: "04-722-1234", deliveryWindow: "10:00-13:00", priority: "normal"
+            },
+            "DN-2025020": {
+                dealer: "員林冷氣 (員林)", branch: "Changhua", time: "2025/12/26 12:00", totalItems: 6, isPosted: false,
+                address: "彰化縣員林市中正路909號", contact: "鄭主任", phone: "04-832-2345", deliveryWindow: "11:00-14:00", priority: "normal"
+            },
+            "DN-2025021": {
+                dealer: "鹿港電器 (鹿港)", branch: "Changhua", time: "2025/12/27 10:00", totalItems: 8, isPosted: false,
+                address: "彰化縣鹿港鎮中山路1010號", contact: "周老闆", phone: "04-777-3456", deliveryWindow: "09:00-12:00", priority: "normal"
+            },
+            "DN-2025032": {
+                dealer: "和美家電 (和美)", branch: "Changhua", time: "2025/12/27 14:00", totalItems: 4, isPosted: false,
+                address: "彰化縣和美鎮和線路1111號", contact: "徐經理", phone: "04-755-4567", deliveryWindow: "13:00-16:00", priority: "normal"
+            },
             // 雲林分公司
-            "DN-2025006": { dealer: "雲林空調 (雲林)", branch: "Yunlin", time: "2025/12/26 13:00", totalItems: 8, isPosted: false },
-            "DN-2025022": { dealer: "斗六家電 (斗六)", branch: "Yunlin", time: "2025/12/26 14:30", totalItems: 6, isPosted: false },
-            "DN-2025023": { dealer: "虎尾冷氣 (虎尾)", branch: "Yunlin", time: "2025/12/27 11:00", totalItems: 4, isPosted: false },
+            "DN-2025006": {
+                dealer: "雲林空調 (雲林)", branch: "Yunlin", time: "2025/12/26 13:00", totalItems: 8, isPosted: false,
+                address: "雲林縣斗六市雲林路二段1212號", contact: "林店長", phone: "05-532-1234", deliveryWindow: "12:00-15:00", priority: "normal"
+            },
+            "DN-2025022": {
+                dealer: "斗六家電 (斗六)", branch: "Yunlin", time: "2025/12/26 14:30", totalItems: 6, isPosted: false,
+                address: "雲林縣斗六市中山路1313號", contact: "黃主任", phone: "05-533-2345", deliveryWindow: "13:00-16:00", priority: "normal"
+            },
+            "DN-2025023": {
+                dealer: "虎尾冷氣 (虎尾)", branch: "Yunlin", time: "2025/12/27 11:00", totalItems: 4, isPosted: false,
+                address: "雲林縣虎尾鎮中正路1414號", contact: "陳老闆", phone: "05-632-3456", deliveryWindow: "10:00-13:00", priority: "normal"
+            },
+            "DN-2025033": {
+                dealer: "北港電器 (北港)", branch: "Yunlin", time: "2025/12/27 15:00", totalItems: 6, isPosted: false,
+                address: "雲林縣北港鎮中山路1515號", contact: "張經理", phone: "05-783-4567", deliveryWindow: "14:00-17:00", priority: "normal"
+            },
             // 嘉義分公司
-            "DN-2025007": { dealer: "嘉義電器 (嘉義)", branch: "Chiayi", time: "2025/12/26 15:00", totalItems: 6, isPosted: false },
-            "DN-2025024": { dealer: "朴子家電 (朴子)", branch: "Chiayi", time: "2025/12/27 09:30", totalItems: 8, isPosted: false },
-            "DN-2025025": { dealer: "民雄冷氣 (民雄)", branch: "Chiayi", time: "2025/12/27 13:00", totalItems: 4, isPosted: false }
+            "DN-2025007": {
+                dealer: "嘉義電器 (嘉義)", branch: "Chiayi", time: "2025/12/26 15:00", totalItems: 6, isPosted: false,
+                address: "嘉義市西區中山路1616號", contact: "王店長", phone: "05-222-1234", deliveryWindow: "14:00-17:00", priority: "normal"
+            },
+            "DN-2025024": {
+                dealer: "朴子家電 (朴子)", branch: "Chiayi", time: "2025/12/27 09:30", totalItems: 8, isPosted: false,
+                address: "嘉義縣朴子市海通路1717號", contact: "李主任", phone: "05-379-2345", deliveryWindow: "08:00-11:00", priority: "normal"
+            },
+            "DN-2025025": {
+                dealer: "民雄冷氣 (民雄)", branch: "Chiayi", time: "2025/12/27 13:00", totalItems: 4, isPosted: false,
+                address: "嘉義縣民雄鄉中正路1818號", contact: "劉老闆", phone: "05-226-3456", deliveryWindow: "12:00-15:00", priority: "normal"
+            },
+            "DN-2025034": {
+                dealer: "太保空調 (太保)", branch: "Chiayi", time: "2025/12/27 16:00", totalItems: 6, isPosted: false,
+                address: "嘉義縣太保市祥和一路1919號", contact: "陳經理", phone: "05-362-4567", deliveryWindow: "15:00-18:00", priority: "normal"
+            }
         };
         const MODELS = ["變頻冷暖2.8kW", "變頻單冷5.0kW"];
         const DB = { notes: [], currentAppUser: null, currentTask: null, operationHistory: [] };
@@ -684,18 +883,22 @@
         }
 
         function loadFromLocalStorage() {
+            // 不再自動載入，改為手動載入（如果需要）
+            // 每次登入都從空白開始
+        }
+
+        function clearAllData() {
+            // 清除所有本地存儲
             try {
-                const savedNotes = localStorage.getItem('wms_db_notes');
-                const savedHistory = localStorage.getItem('wms_db_history');
-                if (savedNotes) {
-                    DB.notes = JSON.parse(savedNotes);
-                    addSystemLog('已載入本地數據', 'success');
-                }
-                if (savedHistory) {
-                    DB.operationHistory = JSON.parse(savedHistory);
-                }
+                localStorage.removeItem('wms_db_notes');
+                localStorage.removeItem('wms_db_history');
+                DB.notes = [];
+                DB.operationHistory = [];
+                DB.currentAppUser = null;
+                DB.currentTask = null;
+                addSystemLog('已清除所有緩存數據', 'info');
             } catch (e) {
-                addSystemLog('數據載入失敗: ' + e.message, 'error');
+                addSystemLog('清除數據失敗: ' + e.message, 'error');
             }
         }
 
@@ -723,13 +926,16 @@
                 alert('請輸入帳號');
                 return;
             }
+
+            // 每次登入時清除所有緩存，從空白開始
+            clearAllData();
+
             document.getElementById('system-login-overlay').style.display = 'none';
             document.querySelector('.main-wrapper').style.display = 'flex';
             document.getElementById('header-branch-name').innerText = document.getElementById('login-branch').selectedOptions[0].text;
             document.getElementById('header-username').innerText = SYSTEM_USER.id;
             initAppLoginScreen();
-            loadFromLocalStorage();
-            addSystemLog(`用戶 ${SYSTEM_USER.id} 登入系統 (${SYSTEM_USER.branch})`, 'success');
+            addSystemLog(`用戶 ${SYSTEM_USER.id} 登入系統 (${SYSTEM_USER.branch}) - 已清除所有緩存，從空白開始`, 'success');
             addOperationHistory('LOGIN', { branch: SYSTEM_USER.branch });
             renderAll();
             // 啟動監控自動刷新
@@ -762,12 +968,23 @@
         function queryT100() {
             const id = document.getElementById('erp-input-id').value.trim();
             const tbody = document.getElementById('erp-list'); tbody.innerHTML = '';
-            if (!id || !T100_DB[id]) { tbody.innerHTML = '<tr><td colspan="6" class="text-danger text-center">查無單號</td></tr>'; return; }
+            if (!id || !T100_DB[id]) { tbody.innerHTML = '<tr><td colspan="8" class="text-danger text-center">查無單號</td></tr>'; return; }
             const d = T100_DB[id];
-            if (SYSTEM_USER.branch !== 'HQ' && d.branch !== SYSTEM_USER.branch) { tbody.innerHTML = '<tr><td colspan="6" class="text-danger text-center">權限不足</td></tr>'; return; }
+            if (SYSTEM_USER.branch !== 'HQ' && d.branch !== SYSTEM_USER.branch) { tbody.innerHTML = '<tr><td colspan="8" class="text-danger text-center">權限不足</td></tr>'; return; }
             const exist = DB.notes.find(n => n.id === id);
             const btn = exist ? `<button class="btn btn-secondary btn-sm" disabled>已匯入</button>` : `<button class="btn btn-primary btn-sm" onclick="importToWMS('${id}')">3. 匯入撿貨</button>`;
-            tbody.innerHTML = `<tr><td class="fw-bold text-primary">${id}</td><td>${d.dealer}</td><td>${d.time}</td><td>${d.totalItems}</td><td>${d.isPosted ? '<span class="badge bg-success">已過帳</span>' : '<span class="badge bg-secondary">未過帳</span>'}</td><td class="text-end">${btn}</td></tr>`;
+            const priorityBadge = d.priority === 'urgent' ? '<span class="badge bg-danger">緊急</span>' : (d.priority === 'high' ? '<span class="badge bg-warning">高</span>' : '<span class="badge bg-secondary">一般</span>');
+            const addressShort = d.address ? (d.address.length > 20 ? d.address.substring(0, 20) + '...' : d.address) : '-';
+            tbody.innerHTML = `<tr>
+                <td class="fw-bold text-primary">${id}</td>
+                <td>${d.dealer}<br><small class="text-muted">${d.contact || ''} ${d.phone || ''}</small></td>
+                <td><small>${addressShort}</small></td>
+                <td>${d.time}</td>
+                <td>${d.totalItems}</td>
+                <td>${priorityBadge}</td>
+                <td>${d.isPosted ? '<span class="badge bg-success">已過帳</span>' : '<span class="badge bg-secondary">未過帳</span>'}</td>
+                <td class="text-end">${btn}</td>
+            </tr>`;
         }
         function importToWMS(id, silent = false) {
             if (DB.notes.find(n => n.id === id)) {
@@ -781,11 +998,36 @@
             }
             const products = []; const sets = Math.ceil(d.totalItems / 2);
             for (let i = 0; i < sets; i++) { products.push({ model: MODELS[Math.floor(Math.random() * MODELS.length)], items: [{ type: '內機', sn: null, status: 'PENDING', qcStatus: null }, { type: '外機', sn: null, status: 'PENDING', qcStatus: null }] }); }
-            DB.notes.push({ id: id, dealer: d.dealer, branch: d.branch, time: d.time, products: products, status: 'NEW', driver: null, isPosted: d.isPosted, podPhoto: null, podSignature: null, createdAt: new Date().toISOString() });
+            DB.notes.push({
+                id: id,
+                dealer: d.dealer,
+                branch: d.branch,
+                time: d.time,
+                products: products,
+                status: 'NEW',
+                driver: null,
+                isPosted: d.isPosted,
+                podPhoto: null,
+                podSignature: null,
+                createdAt: new Date().toISOString(),
+                // 增強信息
+                address: d.address || '',
+                contact: d.contact || '',
+                phone: d.phone || '',
+                deliveryWindow: d.deliveryWindow || '',
+                priority: d.priority || 'normal',
+                notes: '', // 備註
+                actualDeliveryTime: null, // 實際送達時間
+                deliveryStatus: 'pending' // pending, in_transit, delivered, failed
+            });
             addSystemLog(`成功匯入出貨單 ${id} (${d.dealer})`, 'success');
             addOperationHistory('IMPORT_ORDER', { orderId: id, dealer: d.dealer, items: d.totalItems });
             saveToLocalStorage();
-            if (!silent) { queryT100(); renderWMS(); switchTab('tab-2'); }
+            if (!silent) {
+                queryT100(); // 刷新查詢結果，顯示已匯入狀態
+                renderWMS(); // 更新撿貨列表
+                // 不自動切換頁面，停留在出貨單頁面以便繼續匯入
+            }
         }
 
         // Tab 2: WMS
@@ -829,7 +1071,12 @@
             addSystemLog(`完成撿貨：單號 ${wmsCurrentId} (${count}件)`, 'success');
             addOperationHistory('PICK_COMPLETE', { orderId: wmsCurrentId, items: count });
             saveToLocalStorage();
-            renderWMS(); renderTMS(); document.getElementById('wms-detail').innerHTML = ''; switchTab('tab-3');
+            renderWMS(); // 更新撿貨列表（移除已完成的單據）
+            renderTMS(); // 更新派車列表（顯示新完成的單據）
+            // 清空詳情區域，顯示提示訊息
+            document.getElementById('wms-detail').innerHTML = '<div class="text-center text-muted mt-5"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><br><h5 class="text-success">撿貨完成！</h5><p class="small">單號 ' + wmsCurrentId + ' 已送出，可繼續處理其他單據</p></div>';
+            wmsCurrentId = null; // 清空當前選中的單據
+            // 不自動切換頁面，停留在撿貨頁面以便繼續處理其他單據
         }
 
         // Tab 3: TMS
@@ -838,7 +1085,12 @@
             const notes = getFilteredNotes().filter(n => n.status === 'PICKED');
             const sel = document.getElementById('tms-driver'); sel.innerHTML = '<option value="">-- 請選擇 --</option>';
             let drivers = (SYSTEM_USER.branch === 'HQ') ? Object.values(DRIVERS_DB).flat() : (DRIVERS_DB[SYSTEM_USER.branch] || []);
-            drivers.forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.text = d; sel.appendChild(opt); });
+            drivers.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = typeof d === 'string' ? d : d.name;
+                opt.text = typeof d === 'string' ? d : `${d.name} (${d.vehicle})`;
+                sel.appendChild(opt);
+            });
             if (notes.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">無待派車資料</td></tr>';
             notes.forEach(n => {
                 let items = 0; n.products.forEach(p => p.items.forEach(i => { if (i.sn) items++ }));
@@ -852,11 +1104,17 @@
             const checks = document.querySelectorAll('.tms-check:checked');
             if (checks.length === 0) { alert("❌ 請勾選出貨單。"); return; }
             const dispatchedOrders = [];
+            const driverInfo = getDriverInfo(SYSTEM_USER.branch, driver);
             Array.from(checks).forEach(c => {
                 const n = DB.notes.find(x => x.id === c.value);
                 n.status = 'DISPATCHED';
                 n.driver = driver;
                 n.dispatchedAt = new Date().toISOString();
+                n.deliveryStatus = 'in_transit';
+                if (driverInfo) {
+                    n.driverPhone = driverInfo.phone;
+                    n.driverVehicle = driverInfo.vehicle;
+                }
                 dispatchedOrders.push(n.id);
             });
             addSystemLog(`派車成功：司機 ${driver}，單號 ${dispatchedOrders.join(', ')}`, 'success');
@@ -933,7 +1191,11 @@
 
             let driverOptions = `<option value="">未指派</option>`;
             let drivers = (SYSTEM_USER.branch === 'HQ') ? Object.values(DRIVERS_DB).flat() : (DRIVERS_DB[SYSTEM_USER.branch] || []);
-            drivers.forEach(d => { driverOptions += `<option value="${d}" ${n.driver === d ? 'selected' : ''}>${d}</option>`; });
+            drivers.forEach(d => {
+                const driverName = typeof d === 'string' ? d : d.name;
+                const driverText = typeof d === 'string' ? d : `${d.name} (${d.vehicle})`;
+                driverOptions += `<option value="${driverName}" ${n.driver === driverName ? 'selected' : ''}>${driverText}</option>`;
+            });
 
             if (mode === 'edit') {
                 // 再次檢查過帳狀態（防止直接調用）
@@ -1001,6 +1263,13 @@
                                 <p><strong><i class="fas fa-store"></i> 經銷商名稱：</strong> ${n.dealer}</p>
                                 <p><strong><i class="fas fa-calendar-alt"></i> 出貨時間：</strong> ${n.time}</p>
                                 <p><strong><i class="fas fa-truck"></i> 司機名稱：</strong> ${n.driver || '<span class="text-muted">未指派</span>'}</p>
+                                ${n.driverVehicle ? `<p><strong><i class="fas fa-car"></i> 車牌號碼：</strong> ${n.driverVehicle}</p>` : ''}
+                                ${n.driverPhone ? `<p><strong><i class="fas fa-phone"></i> 司機電話：</strong> ${n.driverPhone}</p>` : ''}
+                                ${n.address ? `<p><strong><i class="fas fa-map-marker-alt"></i> 送貨地址：</strong> ${n.address}</p>` : ''}
+                                ${n.contact ? `<p><strong><i class="fas fa-user"></i> 聯絡人：</strong> ${n.contact}</p>` : ''}
+                                ${n.phone ? `<p><strong><i class="fas fa-phone-alt"></i> 聯絡電話：</strong> ${n.phone}</p>` : ''}
+                                ${n.deliveryWindow ? `<p><strong><i class="fas fa-clock"></i> 送貨時段：</strong> ${n.deliveryWindow}</p>` : ''}
+                                ${n.priority ? `<p><strong><i class="fas fa-exclamation-triangle"></i> 優先級：</strong> ${n.priority === 'urgent' ? '<span class="badge bg-danger">緊急</span>' : (n.priority === 'high' ? '<span class="badge bg-warning">高</span>' : '<span class="badge bg-secondary">一般</span>')}</p>` : ''}
                             </div>
                             <div class="col-md-6">
                                 <p><strong><i class="fas fa-boxes"></i> 出貨台數：</strong> <span class="fw-bold text-primary">${totalQty}</span> 台</p>
@@ -1087,33 +1356,240 @@
             const userSelect = document.getElementById('app-user-select'); userSelect.innerHTML = '<option value="">-- 請選擇 --</option>';
             document.getElementById('app-branch-label').innerText = `所屬：${SYSTEM_USER.branch}`;
             let drivers = (SYSTEM_USER.branch === 'HQ') ? Object.values(DRIVERS_DB).flat() : (DRIVERS_DB[SYSTEM_USER.branch] || []);
-            drivers.forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.text = d; userSelect.appendChild(opt); });
+            drivers.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = typeof d === 'string' ? d : d.name;
+                opt.text = typeof d === 'string' ? d : `${d.name} (${d.vehicle})`;
+                userSelect.appendChild(opt);
+            });
         }
+        let appAutoRefreshInterval = null;
+
         function navApp(pid) {
             document.querySelectorAll('.app-page').forEach(p => p.classList.remove('active'));
             document.getElementById(pid).classList.add('active');
             document.getElementById('app-back-btn').style.display = (pid === 'app-detail' || pid === 'app-sign') ? 'inline-block' : 'none';
-            if (pid === 'app-detail') renderAppItems();
+            if (pid === 'app-detail') {
+                renderAppItems();
+                // 在掃描頁面也啟動自動刷新
+                startAppAutoRefresh();
+            } else if (pid === 'app-list') {
+                renderAppTasks();
+                startAppAutoRefresh();
+            } else {
+                // 其他頁面也保持刷新（確保數據同步）
+                startAppAutoRefresh();
+            }
         }
-        function appLogin() { const val = document.getElementById('app-user-select').value; if (!val) { alert("請選擇"); return; } DB.currentAppUser = val; renderAppTasks(); navApp('app-list'); }
-        function renderAppTasks() {
-            const area = document.getElementById('app-tasks'); area.innerHTML = '';
-            const tasks = DB.notes.filter(n => n.status === 'DISPATCHED' && n.driver === DB.currentAppUser);
-            if (tasks.length === 0) area.innerHTML = '<div class="text-center mt-5 text-muted">無任務</div>';
-            tasks.forEach(t => {
-                let count = 0; t.products.forEach(p => p.items.forEach(i => { if (i.sn) count++ }));
-                area.innerHTML += `<div class="app-item-row card mb-2 shadow-sm border-start border-4 border-success" onclick="appStart('${t.id}')"><div class="card-body p-3"><h6>${t.dealer}</h6><small>單號: ${t.id} / 數量: ${count}</small></div></div>`;
+
+        function appLogin() {
+            const val = document.getElementById('app-user-select').value;
+            if (!val) { alert("請選擇"); return; }
+            DB.currentAppUser = val;
+            updateAppDriverName();
+            renderAppTasks();
+            navApp('app-list');
+            startAppAutoRefresh();
+        }
+
+        function updateAppDriverName() {
+            const driverNameEl = document.getElementById('app-current-driver-name');
+            if (driverNameEl) {
+                driverNameEl.textContent = DB.currentAppUser || '未登入';
+            }
+        }
+
+        function showSwitchDriver() {
+            // 創建切換司機的模態框
+            let driverOptions = '';
+            let drivers = (SYSTEM_USER.branch === 'HQ') ? Object.values(DRIVERS_DB).flat() : (DRIVERS_DB[SYSTEM_USER.branch] || []);
+            drivers.forEach(d => {
+                const driverName = typeof d === 'string' ? d : d.name;
+                const driverText = typeof d === 'string' ? d : `${d.name} (${d.vehicle})`;
+                const isCurrent = driverName === DB.currentAppUser;
+                driverOptions += `<option value="${driverName}" ${isCurrent ? 'selected' : ''}>${driverText}</option>`;
+            });
+
+            const modalHtml = `
+                <div class="modal fade" id="switchDriverModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title"><i class="fas fa-user-cog"></i> 切換司機</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-3">當前司機：<strong>${DB.currentAppUser || '未登入'}</strong></p>
+                                <div class="mb-3">
+                                    <label class="form-label">選擇新司機：</label>
+                                    <select class="form-select" id="switch-driver-select">
+                                        ${driverOptions}
+                                    </select>
+                                </div>
+                                <div class="alert alert-warning small">
+                                    <i class="fas fa-exclamation-triangle"></i> 切換司機後，當前任務列表會更新為新司機的任務
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                <button type="button" class="btn btn-primary" onclick="switchDriver()">確認切換</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 移除舊的模態框（如果存在）
+            const oldModal = document.getElementById('switchDriverModal');
+            if (oldModal) {
+                oldModal.remove();
+            }
+
+            // 添加新模態框
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('switchDriverModal'));
+            modal.show();
+
+            // 模態框關閉時移除
+            document.getElementById('switchDriverModal').addEventListener('hidden.bs.modal', function () {
+                this.remove();
             });
         }
+
+        function switchDriver() {
+            const newDriver = document.getElementById('switch-driver-select').value;
+            if (!newDriver) {
+                alert('請選擇一個司機');
+                return;
+            }
+
+            if (newDriver === DB.currentAppUser) {
+                alert('已經是當前司機，無需切換');
+                bootstrap.Modal.getInstance(document.getElementById('switchDriverModal')).hide();
+                return;
+            }
+
+            // 確認切換
+            if (!confirm(`確定要從「${DB.currentAppUser}」切換到「${newDriver}」嗎？`)) {
+                return;
+            }
+
+            const oldDriver = DB.currentAppUser;
+            DB.currentAppUser = newDriver;
+            DB.currentTask = null; // 清空當前任務
+
+            updateAppDriverName();
+            renderAppTasks();
+            addSystemLog(`APP司機切換：${oldDriver} → ${newDriver}`, 'info');
+
+            bootstrap.Modal.getInstance(document.getElementById('switchDriverModal')).hide();
+
+            // 如果當前在掃描頁面，返回任務列表
+            if (document.getElementById('app-detail').classList.contains('active')) {
+                navApp('app-list');
+            }
+        }
+
+        function renderAppTasks() {
+            // 不再自動載入localStorage，數據從DB.notes獲取
+            const area = document.getElementById('app-tasks');
+            area.innerHTML = '';
+            const tasks = DB.notes.filter(n => n.status === 'DISPATCHED' && n.driver === DB.currentAppUser);
+            if (tasks.length === 0) {
+                area.innerHTML = '<div class="text-center mt-5 text-muted"><i class="fas fa-inbox fa-2x mb-2"></i><br>無任務</div>';
+            } else {
+                tasks.forEach(t => {
+                    let count = 0;
+                    t.products.forEach(p => p.items.forEach(i => { if (i.sn) count++ }));
+                    // 檢查任務狀態，顯示進度
+                    let processed = 0, total = 0;
+                    t.products.forEach(p => p.items.forEach(i => {
+                        if (i.sn) {
+                            total++;
+                            if (i.status !== 'PENDING') processed++;
+                        }
+                    }));
+                    let statusBadge = '';
+                    if (t.status === 'COMPLETED') statusBadge = '<span class="badge bg-success ms-2">已完成</span>';
+                    else if (t.status === 'PARTIAL') statusBadge = '<span class="badge bg-warning ms-2">部分完成</span>';
+                    else if (t.status === 'RETURNED') statusBadge = '<span class="badge bg-danger ms-2">已退貨</span>';
+                    else if (processed > 0) statusBadge = `<span class="badge bg-info ms-2">進行中 ${processed}/${total}</span>`;
+                    area.innerHTML += `<div class="app-item-row card mb-2 shadow-sm border-start border-4 border-success" onclick="appStart('${t.id}')">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">${t.dealer}</h6>
+                                    <small class="text-muted">單號: ${t.id} / 數量: ${count}</small>
+                                </div>
+                                ${statusBadge}
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+        }
+
+        // APP自動刷新功能
+        function startAppAutoRefresh() {
+            if (appAutoRefreshInterval) clearInterval(appAutoRefreshInterval);
+            // 每3秒自動刷新一次（比監控看板更頻繁，因為APP需要即時響應）
+            appAutoRefreshInterval = setInterval(() => {
+                // 不再從localStorage載入，直接使用內存中的數據
+                // 數據已經通過saveToLocalStorage保存，但這裡不重新載入
+                // 因為我們希望保持當前會話的數據一致性
+
+                // 如果當前在任務列表頁面，刷新任務列表
+                if (document.getElementById('app-list').classList.contains('active')) {
+                    renderAppTasks();
+                }
+
+                // 如果當前在掃描頁面，更新當前任務的數據
+                if (document.getElementById('app-detail').classList.contains('active') && DB.currentTask) {
+                    // 從內存中獲取當前任務的最新數據
+                    const updatedTask = DB.notes.find(n => n.id === DB.currentTask.id);
+                    if (updatedTask) {
+                        DB.currentTask = updatedTask;
+                        renderAppItems();
+                    }
+                }
+            }, 3000); // 每3秒刷新一次
+        }
+
+        function stopAppAutoRefresh() {
+            if (appAutoRefreshInterval) {
+                clearInterval(appAutoRefreshInterval);
+                appAutoRefreshInterval = null;
+            }
+        }
         function appStart(id) {
+            // 從內存中獲取任務（不再從localStorage載入）
             DB.currentTask = DB.notes.find(n => n.id === id);
+            if (!DB.currentTask) {
+                alert('任務不存在或已被刪除');
+                renderAppTasks();
+                return;
+            }
             navApp('app-detail');
+
+            // 顯示任務信息
+            const taskInfo = document.getElementById('app-task-info');
+            if (taskInfo) {
+                let infoHtml = `<strong>${DB.currentTask.dealer}</strong>`;
+                if (DB.currentTask.address) infoHtml += `<br><i class="fas fa-map-marker-alt"></i> ${DB.currentTask.address}`;
+                if (DB.currentTask.contact && DB.currentTask.phone) infoHtml += `<br><i class="fas fa-phone"></i> ${DB.currentTask.contact} ${DB.currentTask.phone}`;
+                if (DB.currentTask.deliveryWindow) infoHtml += `<br><i class="fas fa-clock"></i> ${DB.currentTask.deliveryWindow}`;
+                taskInfo.innerHTML = infoHtml;
+                taskInfo.style.display = 'block';
+            }
+
             const container = document.getElementById('app-items-container');
             document.getElementById('gps-warning').style.display = 'block';
             document.getElementById('sim-gps-btn').style.display = 'inline-block';
             container.style.opacity = '0.3';
             container.style.pointerEvents = 'none';
             document.getElementById('app-scan-input').disabled = true;
+            // 確保自動刷新繼續運行
+            startAppAutoRefresh();
         }
         function appSimGPS() {
             document.getElementById('gps-warning').style.display = 'none'; document.getElementById('sim-gps-btn').style.display = 'none';
@@ -1125,17 +1601,74 @@
         }
         function appHandleScanEnter(e) { if (e.key === 'Enter') appHandleScanInput(); }
         function appSimScanTrigger() {
+            // 檢查是否有當前任務
+            if (!DB.currentTask) {
+                alert('❌ 請先選擇一個任務');
+                return;
+            }
+
             // 檢查GPS是否已抵達
             const gpsWarning = document.getElementById('gps-warning');
             if (gpsWarning && gpsWarning.style.display !== 'none') {
                 alert('❌ 未抵達目的地，無法掃描條碼！請先點擊「模擬 GPS 抵達」。');
                 return;
             }
-            const t = DB.currentTask; let sn = null;
-            for (let p of t.products) { for (let i of p.items) { if (i.sn && i.status === 'PENDING') { sn = i.sn; break; } } if (sn) break; }
-            if (!sn) { alert("無可掃描項目"); return; } document.getElementById('app-scan-input').value = sn; appHandleScanInput();
+
+            // 從內存中獲取最新任務數據（不再從localStorage載入）
+            const currentTaskId = DB.currentTask.id;
+            const t = DB.notes.find(n => n.id === currentTaskId);
+
+            if (!t) {
+                alert('❌ 任務不存在');
+                return;
+            }
+
+            // 更新當前任務
+            DB.currentTask = t;
+
+            // 查找第一個待掃描的項目
+            let sn = null;
+            for (let p of t.products) {
+                for (let i of p.items) {
+                    if (i.sn && i.status === 'PENDING') {
+                        sn = i.sn;
+                        break;
+                    }
+                }
+                if (sn) break;
+            }
+
+            if (!sn) {
+                alert("無可掃描項目（所有項目都已處理）");
+                return;
+            }
+
+            // 設置輸入框並觸發掃描
+            const input = document.getElementById('app-scan-input');
+            input.value = sn;
+            input.focus();
+            // 直接調用處理函數
+            appHandleScanInput();
         }
         function appHandleScanInput() {
+            // 檢查是否有當前任務
+            if (!DB.currentTask) {
+                alert('❌ 請先選擇一個任務');
+                return;
+            }
+
+            // 從內存中獲取最新任務數據（不再從localStorage載入）
+            const currentTaskId = DB.currentTask.id;
+            const currentTask = DB.notes.find(n => n.id === currentTaskId);
+
+            if (!currentTask) {
+                alert('❌ 任務不存在');
+                return;
+            }
+
+            // 更新當前任務引用
+            DB.currentTask = currentTask;
+
             // 檢查GPS是否已抵達
             const gpsWarning = document.getElementById('gps-warning');
             if (gpsWarning && gpsWarning.style.display !== 'none') {
@@ -1144,45 +1677,148 @@
                 input.value = '';
                 return;
             }
-            const input = document.getElementById('app-scan-input'); const val = input.value.trim(); const isReturn = document.getElementById('returnModeSwitch').checked;
-            if (!val) return;
-            let target = null; DB.currentTask.products.forEach(p => p.items.forEach(i => { if (i.sn === val) target = i; }));
-            if (!target) { alert(`❌ 無此條碼`); input.value = ''; return; }
 
+            const input = document.getElementById('app-scan-input');
+            const val = input.value.trim();
+            const isReturn = document.getElementById('returnModeSwitch').checked;
+
+            if (!val) {
+                return;
+            }
+
+            // 查找目標項目
+            let target = null;
+            let targetProduct = null;
+            let targetItemIndex = -1;
+            let targetProductIndex = -1;
+
+            DB.currentTask.products.forEach((p, pIdx) => {
+                p.items.forEach((i, iIdx) => {
+                    if (i.sn === val) {
+                        target = i;
+                        targetProduct = p;
+                        targetItemIndex = iIdx;
+                        targetProductIndex = pIdx;
+                    }
+                });
+            });
+
+            if (!target) {
+                alert(`❌ 無此條碼：${val}`);
+                input.value = '';
+                return;
+            }
+
+            // 處理掃描
             if (isReturn) {
                 const r = prompt("退貨原因：", "拒收");
-                if (r) { target.status = 'RETURN'; target.returnReason = r; }
+                if (r) {
+                    target.status = 'RETURN';
+                    target.returnReason = r;
+                } else {
+                    return; // 用戶取消
+                }
             } else {
-                if (target.status === 'OK' && confirm("此條碼已掃過，要改為退貨嗎？")) { const r = prompt("退貨原因：", "拒收"); if (r) { target.status = 'RETURN'; target.returnReason = r; } }
-                else if (target.status === 'RETURN' && confirm("此條碼已設為退貨，要改回正常簽收 (OK) 嗎？")) { target.status = 'OK'; target.returnReason = ''; }
-                else { target.status = 'OK'; }
+                if (target.status === 'OK' && confirm("此條碼已掃過，要改為退貨嗎？")) {
+                    const r = prompt("退貨原因：", "拒收");
+                    if (r) {
+                        target.status = 'RETURN';
+                        target.returnReason = r;
+                    }
+                } else if (target.status === 'RETURN' && confirm("此條碼已設為退貨，要改回正常簽收 (OK) 嗎？")) {
+                    target.status = 'OK';
+                    target.returnReason = '';
+                } else {
+                    target.status = 'OK';
+                }
             }
-            input.value = ''; renderAppItems();
+
+            // 保存數據
+            saveToLocalStorage();
+            addSystemLog(`APP掃描：${DB.currentTask.id}，S/N ${val}，狀態 ${target.status}`, 'info');
+
+            input.value = '';
+            renderAppItems();
+
+            // 重新聚焦輸入框以便繼續掃描
+            setTimeout(() => {
+                const scanInput = document.getElementById('app-scan-input');
+                if (scanInput && !scanInput.disabled) {
+                    scanInput.focus();
+                }
+            }, 100);
         }
 
         // Feature: Rescan / Reset
         function appManualItemClick(sn) {
+            // 檢查是否有當前任務
+            if (!DB.currentTask) {
+                alert('❌ 請先選擇一個任務');
+                return;
+            }
+
+            // 從內存中獲取最新任務數據（不再從localStorage載入）
+            const currentTaskId = DB.currentTask.id;
+            const currentTask = DB.notes.find(n => n.id === currentTaskId);
+
+            if (!currentTask) {
+                alert('❌ 任務不存在');
+                return;
+            }
+
+            DB.currentTask = currentTask;
+
             // 檢查GPS是否已抵達
             const gpsWarning = document.getElementById('gps-warning');
             if (gpsWarning && gpsWarning.style.display !== 'none') {
                 alert('❌ 未抵達目的地，無法操作！請先點擊「模擬 GPS 抵達」。');
                 return;
             }
-            let target = null; DB.currentTask.products.forEach(p => p.items.forEach(i => { if (i.sn === sn) target = i; }));
-            if (!target) return;
+
+            let target = null;
+            DB.currentTask.products.forEach(p => {
+                p.items.forEach(i => {
+                    if (i.sn === sn) target = i;
+                });
+            });
+
+            if (!target) {
+                alert('❌ 找不到此項目');
+                return;
+            }
+
             if (target.status === 'PENDING') {
-                document.getElementById('app-scan-input').value = sn; appHandleScanInput();
+                document.getElementById('app-scan-input').value = sn;
+                appHandleScanInput();
             } else {
                 const action = confirm(`此項目 (${sn}) 已處理，是否重新掃描？\n\n點擊「確定」：清除狀態並重新掃描\n點擊「取消」：取消操作`);
                 if (action) {
-                    target.status = 'PENDING'; target.returnReason = ''; renderAppItems();
+                    target.status = 'PENDING';
+                    target.returnReason = '';
+                    saveToLocalStorage();
+                    renderAppItems();
                 }
             }
         }
 
         function renderAppItems() {
-            const container = document.getElementById('app-items-container'); container.innerHTML = '';
-            if (!DB.currentTask) return;
+            const container = document.getElementById('app-items-container');
+            container.innerHTML = '';
+            if (!DB.currentTask) {
+                container.innerHTML = '<div class="alert alert-warning text-center">任務不存在，請返回任務列表</div>';
+                return;
+            }
+
+            // 從內存中獲取最新任務數據（不再從localStorage載入）
+            const currentTaskId = DB.currentTask.id;
+            const latestTask = DB.notes.find(n => n.id === currentTaskId);
+            if (latestTask) {
+                DB.currentTask = latestTask;
+            } else {
+                container.innerHTML = '<div class="alert alert-warning text-center">任務不存在，請返回任務列表</div>';
+                return;
+            }
+
             let total = 0, processed = 0;
             DB.currentTask.products.forEach((p, pIdx) => {
                 p.items.forEach((i, iIdx) => {
@@ -1207,13 +1843,23 @@
             let ok = 0, ret = 0; DB.currentTask.products.forEach(p => p.items.forEach(i => { if (i.status === 'OK') ok++; if (i.status === 'RETURN') ret++; }));
             DB.currentTask.status = (ok > 0 && ret === 0) ? 'COMPLETED' : (ok === 0 && ret > 0 ? 'RETURNED' : 'PARTIAL');
             DB.currentTask.completedAt = new Date().toISOString();
+            DB.currentTask.actualDeliveryTime = new Date().toISOString();
+            DB.currentTask.deliveryStatus = 'delivered';
             // Save POD
             DB.currentTask.podPhoto = "https://via.placeholder.com/300x200?text=POD+Photo";
             DB.currentTask.podSignature = canvas.toDataURL();
             addSystemLog(`簽收完成：單號 ${DB.currentTask.id} (${ok}件簽收${ret > 0 ? `, ${ret}件退貨` : ''})`, 'success');
             addOperationHistory('POD_COMPLETE', { orderId: DB.currentTask.id, ok: ok, return: ret, status: DB.currentTask.status });
             saveToLocalStorage();
-            renderAll(); navApp('app-list'); renderAppTasks(); hasPhoto = false; hasSign = false; clearSign(); document.getElementById('photo-check').style.display = 'none';
+            renderAll();
+            // 清空當前任務
+            DB.currentTask = null;
+            navApp('app-list');
+            renderAppTasks();
+            hasPhoto = false;
+            hasSign = false;
+            clearSign();
+            document.getElementById('photo-check').style.display = 'none';
         }
 
         let monitorRefreshInterval = null;
