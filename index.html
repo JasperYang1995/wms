@@ -1120,7 +1120,7 @@
             addSystemLog(`派車成功：司機 ${driver}，單號 ${dispatchedOrders.join(', ')}`, 'success');
             addOperationHistory('DISPATCH', { driver: driver, orders: dispatchedOrders });
             saveToLocalStorage();
-            renderAll(); switchTab('tab-4');
+            renderAll();
         }
 
         // Tab 6: Query (Detailed View Implemented)
